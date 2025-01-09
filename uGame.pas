@@ -20,16 +20,30 @@ type
     RectBottomPipe3: TRectangle;
     procedure ImgBackGroundClick(Sender: TObject);
     procedure FloatAnimationFinish(Sender: TObject);
+    procedure FloatAnimationJumpBirdFinish(Sender: TObject);
+    procedure FloatAnimationJumpBackwardsBirdFinish(Sender: TObject);
+
     procedure FloatAnimationBirdFinish(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
+      Shift: TShiftState);
   private
-    procedure LoadAnimation(Rect: TRectangle);
-    procedure LoadBirdAnimation(Rect: TRectangle);
+    FFloatAnimationBird: TFloatAnimation;
+    function GetFloatAnimationBird: TFloatAnimation;
+    procedure LoadBackgroundAnimation(Rect: TRectangle);
+    procedure LoadBirdAnimation;
     procedure CalculateDuration(var FloatAnimation: TFloatAnimation);
+    procedure JumpBird;
     procedure StopAllAnimations;
+    function GetCurrentAnimation(Sender: TObject): TFloatAnimation;
+
+    property FloatAnimationBird: TFloatAnimation read GetFloatAnimationBird;
   public
     { Public declarations }
   end;
 
+const
+  cTIME_DUMP = 0.3;
+  cHEIGHT_DUMP = 30;
 var
   Form1: TForm1;
 
@@ -40,7 +54,7 @@ implementation
 procedure TForm1.FloatAnimationBirdFinish(Sender: TObject);
 begin
   StopAllAnimations;
-  ShowMessage('End of the game');
+  ShowMessage('Game over');
 
 end;
 
@@ -60,35 +74,101 @@ begin
   end;
 end;
 
+function TForm1.GetCurrentAnimation(Sender: TObject): TFloatAnimation;
+begin
+  if Sender is TFloatAnimation
+  then Result := TFloatAnimation(Sender)
+  else raise Exception.Create('Object is not a TFloatAnimation');
+end;
 
 procedure TForm1.FloatAnimationFinish(Sender: TObject);
 var
   FloatAnimation: TFloatAnimation;
 begin
-  if Sender is TFloatAnimation
-  then
-    begin
-      FloatAnimation := TFloatAnimation(Sender);
-      FloatAnimation.StartValue := ImgBackGround.Width;
-      CalculateDuration(FloatAnimation);
-      FloatAnimation.Start;
-    end;
+  FloatAnimation := GetCurrentAnimation(Sender);
+  FloatAnimation.StartValue := ImgBackGround.Width;
+  CalculateDuration(FloatAnimation);
+  FloatAnimation.Start;
+end;
+
+procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
+  Shift: TShiftState);
+begin
+  if KeyChar = ' ' then
+    JumpBird;
+
+end;
+
+function TForm1.GetFloatAnimationBird: TFloatAnimation;
+begin
+  if not Assigned(FFloatAnimationBird) then
+  begin
+    FFloatAnimationBird := TFloatAnimation.Create(Self);
+    FFloatAnimationBird.Parent := RectBird;
+    FFloatAnimationBird.PropertyName := 'Position.Y';
+    FFloatAnimationBird.OnFinish := FloatAnimationBirdFinish;
+    FFloatAnimationBird.StartValue := RectBird.Position.Y;
+    FFloatAnimationBird.StopValue := ImgBackGround.Height - RectBird.Height + 10;
+    FFloatAnimationBird.Duration := 5;
+  end;
+
+  Result := FFloatAnimationBird;
 end;
 
 procedure TForm1.ImgBackGroundClick(Sender: TObject);
 begin
-  LoadAnimation(RectTopPipe);
-  LoadAnimation(RectBottomPipe);
-  LoadAnimation(RectTopPipe2);
-  LoadAnimation(RectBottomPipe2);
-  LoadAnimation(RectTopPipe3);
-  LoadAnimation(RectBottomPipe3);
+  LoadBackgroundAnimation(RectTopPipe);
+  LoadBackgroundAnimation(RectBottomPipe);
+  LoadBackgroundAnimation(RectTopPipe2);
+  LoadBackgroundAnimation(RectBottomPipe2);
+  LoadBackgroundAnimation(RectTopPipe3);
+  LoadBackgroundAnimation(RectBottomPipe3);
 
 
-  LoadBirdAnimation(RectBird);
+  LoadBirdAnimation;
 end;
 
-procedure TForm1.LoadAnimation(Rect: TRectangle);
+procedure TForm1.JumpBird;
+var
+  FloatAnimation: TFloatAnimation;
+begin
+  FloatAnimation := TFloatAnimation.Create(Self);
+  FloatAnimation.Parent := RectBird;
+  FloatAnimation.PropertyName := 'Position.Y';
+  FloatAnimation.OnFinish := FloatAnimationJumpBirdFinish;
+  FloatAnimation.StartValue := RectBird.Position.Y;
+  FloatAnimation.StopValue := RectBird.Position.Y - cHEIGHT_DUMP;
+  FloatAnimation.Duration := cTIME_DUMP;
+  FloatAnimationBird.Pause := True;
+  FloatAnimation.Start;
+
+end;
+
+procedure TForm1.FloatAnimationJumpBirdFinish(Sender: TObject);
+var
+  FloatAnimation: TFloatAnimation;
+begin
+  FloatAnimation := TFloatAnimation.Create(Self);
+  FloatAnimation.Parent := RectBird;
+  FloatAnimation.PropertyName := 'Position.Y';
+  FloatAnimation.OnFinish := FloatAnimationJumpBackwardsBirdFinish;
+  FloatAnimation.StartValue := RectBird.Position.Y;
+  FloatAnimation.StopValue := RectBird.Position.Y + cHEIGHT_DUMP;
+  FloatAnimation.Duration := cTIME_DUMP;
+  FloatAnimation.Start;
+end;
+
+procedure TForm1.FloatAnimationJumpBackwardsBirdFinish(Sender: TObject);
+begin
+  if FloatAnimationBird.Pause then
+  begin
+    FreeAndNil(FFloatAnimationBird);
+    FloatAnimationBird.Start;
+  end;
+end;
+
+
+procedure TForm1.LoadBackgroundAnimation(Rect: TRectangle);
 var
   FloatAnimation: TFloatAnimation;
 begin
@@ -103,17 +183,8 @@ begin
   FloatAnimation.Start;
 end;
 
-procedure TForm1.LoadBirdAnimation(Rect: TRectangle);
-var
-  FloatAnimationBird: TFloatAnimation;
+procedure TForm1.LoadBirdAnimation;
 begin
-  FloatAnimationBird := TFloatAnimation.Create(Self);
-  FloatAnimationBird.Parent := Rect;
-  FloatAnimationBird.PropertyName := 'Position.Y';
-  FloatAnimationBird.OnFinish := FloatAnimationBirdFinish;
-  FloatAnimationBird.StartValue := Rect.Position.Y;
-  FloatAnimationBird.StopValue := ImgBackGround.Height - Rect.Height + 10;
-  FloatAnimationBird.Duration := 5;
   FloatAnimationBird.Start;
 end;
 
