@@ -3,10 +3,10 @@ unit uGame;
 interface
 
 uses
-  System.SysUtils, System.Types, System.UITypes, System.Classes,
-  System.Variants,
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
-  FMX.Ani, FMX.Controls.Presentation, FMX.StdCtrls;
+  FMX.Ani, FMX.Controls.Presentation, FMX.StdCtrls, Math, FMX.Memo.Types,
+  FMX.ScrollBox, FMX.Memo;
 
 type
   TForm1 = class(TForm)
@@ -18,6 +18,7 @@ type
     RectBottomPipe2: TRectangle;
     RectTopPipe3: TRectangle;
     RectBottomPipe3: TRectangle;
+    MemoLog: TMemo;
     procedure ImgBackGroundClick(Sender: TObject);
     procedure FloatAnimationFinish(Sender: TObject);
     procedure FloatAnimationJumpBirdFinish(Sender: TObject);
@@ -26,7 +27,10 @@ type
     procedure FloatAnimationBirdFinish(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
       Shift: TShiftState);
+    procedure FormCreate(Sender: TObject);
   private
+    RandomHeight, idx: Integer;
+    TopAjusted, BottomAjusted: Boolean;
     FFloatAnimationBird: TFloatAnimation;
     function GetFloatAnimationBird: TFloatAnimation;
     procedure LoadBackgroundAnimation(Rect: TRectangle);
@@ -35,7 +39,10 @@ type
     procedure JumpBird;
     procedure StopAllAnimations;
     function GetCurrentAnimation(Sender: TObject): TFloatAnimation;
-
+    function GetCurrentRectangle(AFloatAnimation: TFloatAnimation): TRectangle;
+    function IsTopRectangle(Rect: TRectangle): Boolean;
+    procedure ReloadRectangle(FloatAnimation: TFloatAnimation);
+    function GetTempCurrentLabel(Rect: TRectangle): TLabel;
     property FloatAnimationBird: TFloatAnimation read GetFloatAnimationBird;
   public
     { Public declarations }
@@ -44,10 +51,17 @@ type
 const
   cTIME_DUMP = 0.3;
   cHEIGHT_DUMP = 30;
+  cDEFAULT_RECT_HEIGHT = 200;
+  CDEFAULT_RECT_POSITION_Y_TOP = 6;
+  CDEFAULT_RECT_POSITION_Y_BOTTOM = 270;
+  cSPACE =  ' ';
 var
   Form1: TForm1;
 
 implementation
+
+uses
+  Winapi.Windows, System.StrUtils;
 
 {$R *.fmx}
 
@@ -81,22 +95,22 @@ begin
   else raise Exception.Create('Object is not a TFloatAnimation');
 end;
 
+function TForm1.GetCurrentRectangle(AFloatAnimation: TFloatAnimation): TRectangle;
+begin
+  if AFloatAnimation.Parent is TRectangle
+  then Result := TRectangle(AFloatAnimation.Parent)
+  else raise Exception.Create('Parent object is not a TRectangle');
+end;
+
 procedure TForm1.FloatAnimationFinish(Sender: TObject);
 var
   FloatAnimation: TFloatAnimation;
 begin
   FloatAnimation := GetCurrentAnimation(Sender);
+  ReloadRectangle(FloatAnimation);
   FloatAnimation.StartValue := ImgBackGround.Width;
   CalculateDuration(FloatAnimation);
   FloatAnimation.Start;
-end;
-
-procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
-  Shift: TShiftState);
-begin
-  if KeyChar = ' ' then
-    JumpBird;
-
 end;
 
 function TForm1.GetFloatAnimationBird: TFloatAnimation;
@@ -128,6 +142,12 @@ begin
   LoadBirdAnimation;
 end;
 
+function TForm1.IsTopRectangle(Rect: TRectangle): Boolean;
+begin
+  Result := Rect.Tag = 0;
+  
+end;
+
 procedure TForm1.JumpBird;
 var
   FloatAnimation: TFloatAnimation;
@@ -137,7 +157,7 @@ begin
   FloatAnimation.PropertyName := 'Position.Y';
   FloatAnimation.OnFinish := FloatAnimationJumpBirdFinish;
   FloatAnimation.StartValue := RectBird.Position.Y;
-  FloatAnimation.StopValue := RectBird.Position.Y - cHEIGHT_DUMP;
+  FloatAnimation.StopValue := RectBird.Position.Y - cHEIGHT_DUMP - cHEIGHT_DUMP;
   FloatAnimation.Duration := cTIME_DUMP;
   FloatAnimationBird.Pause := True;
   FloatAnimation.Start;
@@ -156,6 +176,18 @@ begin
   FloatAnimation.StopValue := RectBird.Position.Y + cHEIGHT_DUMP;
   FloatAnimation.Duration := cTIME_DUMP;
   FloatAnimation.Start;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);
+begin
+  MemoLog.Visible := {$IFDEF DEBUG} True {$ELSE} False {$ENDIF};
+end;
+
+procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
+  Shift: TShiftState);
+begin
+  if KeyChar = cSPACE then
+    JumpBird;
 end;
 
 procedure TForm1.FloatAnimationJumpBackwardsBirdFinish(Sender: TObject);
@@ -191,6 +223,97 @@ end;
 procedure TForm1.CalculateDuration(var FloatAnimation: TFloatAnimation);
 begin
   FloatAnimation.Duration := (0.0205 * FloatAnimation.StartValue) + 2.5;
+end;
+
+{procedure TForm1.ReloadRectangle(FloatAnimation: TFloatAnimation);
+var
+  Rect: TRectangle;
+begin
+  Rect := GetCurrentRectangle(FloatAnimation);
+  if IsTopRectangle(Rect) then
+  begin
+    Memo1.Lines.Add('Rect Top');
+    if not BottomAjusted then
+      RandomHeight := RandomRange(30, 60);
+
+    Rect.Height := cDEFAULT_RECT_HEIGHT - RandomHeight;
+    Rect.Position.Y := CDEFAULT_RECT_POSITION_Y_TOP;
+    TopAjusted := True;
+    BottomAjusted := False;
+
+  end
+  else
+  begin
+    Memo1.Lines.Add('Rect Bottom');
+    if not TopAjusted then
+      RandomHeight := RandomRange(30, 60);
+
+    Rect.Height := cDEFAULT_RECT_HEIGHT + RandomHeight;
+    Rect.Position.Y := CDEFAULT_RECT_POSITION_Y_BOTTOM - RandomHeight;
+    BottomAjusted := True;
+    TopAjusted := False;
+  end;
+  Memo1.Lines.Add('Rect.Height: ' + Rect.Height.ToString + sLineBreak +
+                  'Rect.Position.Y: ' + Rect.Position.Y.ToString);
+  Memo1.Lines.Add('');
+end;}
+
+procedure TForm1.ReloadRectangle(FloatAnimation: TFloatAnimation);
+var
+  Rect: TRectangle;
+  IsTop: Boolean;
+  AdjustHeight: Integer;
+const
+  RandomRangeTemp: array of Integer = [50, -50, 0];
+begin
+  Rect := GetCurrentRectangle(FloatAnimation);
+  IsTop := IsTopRectangle(Rect);
+
+  if (IsTop and not BottomAjusted) or (not IsTop and not TopAjusted) then
+  begin
+    if idx > 2
+    then idx := 0;
+
+    RandomHeight := RandomRangeTemp[idx];
+    Inc(idx);
+
+    TopAjusted := IsTop;
+    BottomAjusted := not IsTop;
+  end
+  else
+    begin
+     if IsTop then
+       BottomAjusted := False
+     else
+       TopAjusted := False;
+    end;
+
+  AdjustHeight := IfThen(IsTop, -RandomHeight, +RandomHeight);
+  Rect.Height := cDEFAULT_RECT_HEIGHT + AdjustHeight;
+  Rect.Position.Y := IfThen(IsTop, CDEFAULT_RECT_POSITION_Y_TOP,
+    CDEFAULT_RECT_POSITION_Y_BOTTOM - RandomHeight);
+
+  MemoLog.Lines.Add(IfThen(IsTop, 'Rect Top', 'Rect Bottom'));
+  MemoLog.Lines.Add('Rect.Height: ' + Rect.Height.ToString + sLineBreak +
+                  'Rect.Position.Y: ' + Rect.Position.Y.ToString + sLineBreak +
+                  'RandomHeight: ' + RandomHeight.ToString);
+  MemoLog.Lines.Add('');
+end;
+
+function TForm1.GetTempCurrentLabel(Rect: TRectangle): TLabel;
+var
+  i: Integer;
+  Component: TComponent;
+begin
+  for i := 0 to Self.ComponentCount - 1 do
+  begin
+    Component := Self.Components[i];
+    if Component is TLabel and (TLabel(Component).Parent = Rect) then
+    begin
+      Result := TLabel(Component);
+      Break;
+    end;
+  end;
 end;
 
 end.
