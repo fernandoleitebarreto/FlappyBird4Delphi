@@ -41,7 +41,7 @@ type
     function GetCurrentAnimation(Sender: TObject): TFloatAnimation;
     function GetCurrentRectangle(AFloatAnimation: TFloatAnimation): TRectangle;
     function IsTopRectangle(Rect: TRectangle): Boolean;
-    procedure ReloadRectangle(FloatAnimation: TFloatAnimation);
+    procedure ReloadRectangle(Rect: TRectangle);
     function GetTempCurrentLabel(Rect: TRectangle): TLabel;
     property FloatAnimationBird: TFloatAnimation read GetFloatAnimationBird;
   public
@@ -51,9 +51,10 @@ type
 const
   cTIME_DUMP = 0.3;
   cHEIGHT_DUMP = 30;
-  cDEFAULT_RECT_HEIGHT = 200;
+  CDEFAULT_RECT_HEIGHT = 200;
   CDEFAULT_RECT_POSITION_Y_TOP = 6;
   CDEFAULT_RECT_POSITION_Y_BOTTOM = 270;
+  CDEFAULT_SPACE_BETWEEN = 40;
   cSPACE =  ' ';
 var
   Form1: TForm1;
@@ -84,14 +85,18 @@ begin
     begin
       if TFloatAnimation(Component).Running then
         TFloatAnimation(Component).Pause := True;
+
+      //FreeAndNil(TFloatAnimation(Component));
     end;
   end;
 end;
 
 function TForm1.GetCurrentAnimation(Sender: TObject): TFloatAnimation;
 begin
-  if Sender is TFloatAnimation
-  then Result := TFloatAnimation(Sender)
+  if Sender is TFloatAnimation then
+    Result := TFloatAnimation(Sender)
+  else if Sender is TRectangle then
+    Result := TFloatAnimation(TRectangle(Sender).TagObject)
   else raise Exception.Create('Object is not a TFloatAnimation');
 end;
 
@@ -107,7 +112,7 @@ var
   FloatAnimation: TFloatAnimation;
 begin
   FloatAnimation := GetCurrentAnimation(Sender);
-  ReloadRectangle(FloatAnimation);
+  ReloadRectangle(GetCurrentRectangle(FloatAnimation));
   FloatAnimation.StartValue := ImgBackGround.Width;
   CalculateDuration(FloatAnimation);
   FloatAnimation.Start;
@@ -138,7 +143,7 @@ begin
   LoadBackgroundAnimation(RectTopPipe3);
   LoadBackgroundAnimation(RectBottomPipe3);
 
-
+  RectBird.Position.Y := CDEFAULT_RECT_POSITION_Y_BOTTOM - CDEFAULT_SPACE_BETWEEN;
   LoadBirdAnimation;
 end;
 
@@ -181,6 +186,14 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   MemoLog.Visible := {$IFDEF DEBUG} True {$ELSE} False {$ENDIF};
+
+  ReloadRectangle(RectTopPipe);
+  ReloadRectangle(RectBottomPipe);
+  ReloadRectangle(RectTopPipe2);
+  ReloadRectangle(RectBottomPipe2);
+  ReloadRectangle(RectTopPipe3);
+  ReloadRectangle(RectBottomPipe3);
+
 end;
 
 procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char;
@@ -192,11 +205,8 @@ end;
 
 procedure TForm1.FloatAnimationJumpBackwardsBirdFinish(Sender: TObject);
 begin
-  if FloatAnimationBird.Pause then
-  begin
-    FreeAndNil(FFloatAnimationBird);
-    FloatAnimationBird.Start;
-  end;
+  LoadBirdAnimation;
+  
 end;
 
 
@@ -204,20 +214,26 @@ procedure TForm1.LoadBackgroundAnimation(Rect: TRectangle);
 var
   FloatAnimation: TFloatAnimation;
 begin
+  if Assigned(Rect.TagObject) then
+    FreeAndNil(Rect.TagObject);
   FloatAnimation := TFloatAnimation.Create(Self);
   FloatAnimation.Parent := Rect;
+  Rect.TagObject := FloatAnimation;
   FloatAnimation.OnFinish := FloatAnimationFinish;
   FloatAnimation.PropertyName := 'Position.X';
   FloatAnimation.StartValue := Rect.Position.X;
   FloatAnimation.StopValue := Rect.Width * (-1);
   CalculateDuration(FloatAnimation);
-
   FloatAnimation.Start;
 end;
 
 procedure TForm1.LoadBirdAnimation;
 begin
-  FloatAnimationBird.Start;
+  if FloatAnimationBird.Pause then
+  begin
+    FreeAndNil(FFloatAnimationBird);
+    FloatAnimationBird.Start;
+  end;
 end;
 
 procedure TForm1.CalculateDuration(var FloatAnimation: TFloatAnimation);
@@ -225,53 +241,23 @@ begin
   FloatAnimation.Duration := (0.0205 * FloatAnimation.StartValue) + 2.5;
 end;
 
-{procedure TForm1.ReloadRectangle(FloatAnimation: TFloatAnimation);
+procedure TForm1.ReloadRectangle(Rect: TRectangle);
 var
-  Rect: TRectangle;
-begin
-  Rect := GetCurrentRectangle(FloatAnimation);
-  if IsTopRectangle(Rect) then
-  begin
-    Memo1.Lines.Add('Rect Top');
-    if not BottomAjusted then
-      RandomHeight := RandomRange(30, 60);
-
-    Rect.Height := cDEFAULT_RECT_HEIGHT - RandomHeight;
-    Rect.Position.Y := CDEFAULT_RECT_POSITION_Y_TOP;
-    TopAjusted := True;
-    BottomAjusted := False;
-
-  end
-  else
-  begin
-    Memo1.Lines.Add('Rect Bottom');
-    if not TopAjusted then
-      RandomHeight := RandomRange(30, 60);
-
-    Rect.Height := cDEFAULT_RECT_HEIGHT + RandomHeight;
-    Rect.Position.Y := CDEFAULT_RECT_POSITION_Y_BOTTOM - RandomHeight;
-    BottomAjusted := True;
-    TopAjusted := False;
-  end;
-  Memo1.Lines.Add('Rect.Height: ' + Rect.Height.ToString + sLineBreak +
-                  'Rect.Position.Y: ' + Rect.Position.Y.ToString);
-  Memo1.Lines.Add('');
-end;}
-
-procedure TForm1.ReloadRectangle(FloatAnimation: TFloatAnimation);
-var
-  Rect: TRectangle;
   IsTop: Boolean;
   AdjustHeight: Integer;
+  Current_Rect_Height,
+  Current_Rect_Position_Y_Bottom: Integer;
 const
   RandomRangeTemp: array of Integer = [50, -50, 0];
 begin
-  Rect := GetCurrentRectangle(FloatAnimation);
+  Current_Rect_Height := CDEFAULT_RECT_HEIGHT - CDEFAULT_SPACE_BETWEEN;
+  Current_Rect_Position_Y_Bottom := CDEFAULT_RECT_POSITION_Y_BOTTOM + CDEFAULT_SPACE_BETWEEN;
+
   IsTop := IsTopRectangle(Rect);
 
   if (IsTop and not BottomAjusted) or (not IsTop and not TopAjusted) then
   begin
-    if idx > 2
+    if idx > Length(RandomRangeTemp)-1
     then idx := 0;
 
     RandomHeight := RandomRangeTemp[idx];
@@ -289,13 +275,14 @@ begin
     end;
 
   AdjustHeight := IfThen(IsTop, -RandomHeight, +RandomHeight);
-  Rect.Height := cDEFAULT_RECT_HEIGHT + AdjustHeight;
+  Rect.Height := Current_Rect_Height + AdjustHeight;
   Rect.Position.Y := IfThen(IsTop, CDEFAULT_RECT_POSITION_Y_TOP,
-    CDEFAULT_RECT_POSITION_Y_BOTTOM - RandomHeight);
+                                   Current_Rect_Position_Y_Bottom - RandomHeight);
 
   MemoLog.Lines.Add(IfThen(IsTop, 'Rect Top', 'Rect Bottom'));
   MemoLog.Lines.Add('Rect.Height: ' + Rect.Height.ToString + sLineBreak +
                   'Rect.Position.Y: ' + Rect.Position.Y.ToString + sLineBreak +
+                  'AdjustHeight: ' + AdjustHeight.ToString + sLineBreak +
                   'RandomHeight: ' + RandomHeight.ToString);
   MemoLog.Lines.Add('');
 end;
